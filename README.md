@@ -1,17 +1,17 @@
-# Plugin de Figma - Generador de Paletas OKLCH
+# Plugin de Figma - Generador de Rampas OKLCH
 
-Plugin de Figma para generar paletas de colores en formato OKLCH con cálculo de contraste WCAG y APCA.
+Plugin de Figma para generar rampas de colores en formato OKLCH con cálculo de contraste WCAG y APCA.
 
 ## ✨ Características
 
-- ✅ Generación automática de paletas de colores en OKLCH
+- ✅ Generación automática de rampas de colores en OKLCH
 - ✅ Soporte para entrada HEX o OKLCH
 - ✅ Cálculo de contraste WCAG y APCA
 - ✅ Generación de componentes de Figma (padre + instancias)
 - ✅ Generación de variables de color de Figma
 - ✅ Soporte para modos claro y oscuro
 - ✅ Formatos de tokens personalizables (kebab-case, camelCase, PascalCase, snake_case)
-- ✅ Generación desde JSON para múltiples paletas
+- ✅ Generación desde JSON para múltiples rampas
 
 ## 🚀 Quick Start
 

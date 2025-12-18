@@ -456,7 +456,11 @@ async function createColorInstance(
   oklch: OKLCHColor,
   namingFormat: NamingFormat,
   x: number,
-  y: number
+  y: number,
+  options?: {
+    collectionName?: string;
+    variableByName?: Map<string, Variable>;
+  }
 ): Promise<InstanceNode> {
   const instance = parent.createInstance();
   const instanceName = formatColorName(colorName, shade, namingFormat);
@@ -501,7 +505,26 @@ async function createColorInstance(
   ) as RectangleNode;
   
   if (swatch) {
-    swatch.fills = [{ type: "SOLID", color: { r, g, b } }];
+    const solidPaint: SolidPaint = { type: "SOLID", color: { r, g, b } };
+
+    const collectionName = options?.collectionName;
+    const variableByName = options?.variableByName;
+    const varName =
+      collectionName ? `${collectionName}/color/${colorName}/${shade}` : null;
+    const variable = varName && variableByName ? variableByName.get(varName) : undefined;
+
+    // Bind variable to the paint color when available (shows variable badge in UI)
+    // Falls back to raw RGB if variable doesn't exist / variables not enabled.
+    if (variable) {
+      const bound = figma.variables.setBoundVariableForPaint(
+        solidPaint,
+        "color",
+        variable
+      );
+      swatch.fills = [bound];
+    } else {
+      swatch.fills = [solidPaint];
+    }
   }
 
   // Update "color" label
@@ -643,6 +666,7 @@ async function createColorVariables(
     codeSyntaxPlatform?: "WEB" | "ANDROID" | "iOS";
     useLightMode: boolean;
     useDarkMode: boolean;
+    useDefaultMode: boolean;
   }>
 ) {
   // Process each color with its own collection and options
@@ -655,7 +679,8 @@ async function createColorVariables(
     description,
     codeSyntaxPlatform,
     useLightMode,
-    useDarkMode
+    useDarkMode,
+    useDefaultMode
   } of colorData) {
     // Get or create collection for this color
   const collections = await figma.variables.getLocalVariableCollectionsAsync();
@@ -665,30 +690,39 @@ async function createColorVariables(
     collection = figma.variables.createVariableCollection(collectionName);
   }
 
-    // Create modes based on color options
+    // Create modes based on options.
+    // If neither Light nor Dark was selected, we create/use a single "Default" mode.
+    let defaultModeId: string | null = null;
     let lightModeId: string | null = null;
     let darkModeId: string | null = null;
 
-    if (useLightMode) {
-      lightModeId = collection.modes[0].modeId;
-      if (collection.modes[0].name !== "Light") {
-        collection.renameMode(lightModeId, "Light");
+    if (useDefaultMode) {
+      defaultModeId = collection.modes[0].modeId;
+      if (collection.modes[0].name !== "Default") {
+        collection.renameMode(defaultModeId, "Default");
       }
-    }
+    } else {
+      if (useLightMode) {
+        lightModeId = collection.modes[0].modeId;
+        if (collection.modes[0].name !== "Light") {
+          collection.renameMode(lightModeId, "Light");
+        }
+      }
 
-    if (useDarkMode) {
-      if (collection.modes.length === 1 && useLightMode) {
-        darkModeId = collection.addMode("Dark");
-      } else {
-        const darkMode = collection.modes.find(m => m.name === "Dark");
-        if (darkMode) {
-          darkModeId = darkMode.modeId;
-        } else if (useLightMode) {
+      if (useDarkMode) {
+        if (collection.modes.length === 1 && useLightMode) {
           darkModeId = collection.addMode("Dark");
         } else {
-          // If only dark mode, rename first mode
-          darkModeId = collection.modes[0].modeId;
-          collection.renameMode(darkModeId, "Dark");
+          const darkMode = collection.modes.find((m) => m.name === "Dark");
+          if (darkMode) {
+            darkModeId = darkMode.modeId;
+          } else if (useLightMode) {
+            darkModeId = collection.addMode("Dark");
+          } else {
+            // If only dark mode, rename first mode
+            darkModeId = collection.modes[0].modeId;
+            collection.renameMode(darkModeId, "Dark");
+          }
         }
       }
     }
@@ -700,7 +734,7 @@ async function createColorVariables(
       const darkColor = darkPalette[i];
       
       // Only create variable if we have at least one mode
-      if (!useLightMode && !useDarkMode) continue;
+      if (!useDefaultMode && !useLightMode && !useDarkMode) continue;
       if (!lightColor && !darkColor) continue;
 
       // Use the first available color to determine shade name
@@ -746,8 +780,17 @@ async function createColorVariables(
       console.warn("No se pudo aplicar code syntax", e);
     }
 
+      // Set Default mode value
+      if (useDefaultMode && defaultModeId && lightColor) {
+        variable.setValueForMode(defaultModeId, {
+          r: lightColor.rgb.r,
+          g: lightColor.rgb.g,
+          b: lightColor.rgb.b,
+        });
+      }
+
       // Set Light mode value
-      if (useLightMode && lightModeId && lightColor) {
+      if (!useDefaultMode && useLightMode && lightModeId && lightColor) {
         variable.setValueForMode(lightModeId, {
           r: lightColor.rgb.r,
           g: lightColor.rgb.g,
@@ -756,7 +799,7 @@ async function createColorVariables(
       }
 
       // Set Dark mode value
-      if (useDarkMode && darkModeId && darkColor) {
+      if (!useDefaultMode && useDarkMode && darkModeId && darkColor) {
         variable.setValueForMode(darkModeId, {
           r: darkColor.rgb.r,
           g: darkColor.rgb.g,
@@ -780,6 +823,7 @@ async function handleGeneratePalette(msg: PaletteMessage) {
       codeSyntaxPlatform?: "WEB" | "ANDROID" | "iOS";
       useLightMode: boolean;
       useDarkMode: boolean;
+      useDefaultMode: boolean;
     }> = [];
 
     // Process all colors
@@ -797,8 +841,11 @@ async function handleGeneratePalette(msg: PaletteMessage) {
 
       // Get number of variants (default to 9)
       const numberOfVariants = colorInput.numberOfVariants || 9;
-      const useLightMode = colorInput.useLightMode !== false; // Default true
-      const useDarkMode = colorInput.useDarkMode !== false; // Default true
+      const requestedLightMode = colorInput.useLightMode !== false; // Default true
+      const requestedDarkMode = colorInput.useDarkMode !== false; // Default true
+      const useDefaultMode = !requestedLightMode && !requestedDarkMode;
+      const useLightMode = requestedLightMode || useDefaultMode;
+      const useDarkMode = requestedDarkMode;
 
       // Generate palettes based on mode preferences
       const lightPalette = useLightMode 
@@ -818,22 +865,91 @@ async function handleGeneratePalette(msg: PaletteMessage) {
         codeSyntaxPlatform: colorInput.codeSyntaxPlatform,
         useLightMode,
         useDarkMode,
+        useDefaultMode,
       });
+    }
 
-    // Create components if enabled
-    if (msg.createComponents) {
-        const parentComponent = await createParentComponent(
-          colorInput.colorName,
-        msg.namingFormat
-      );
-      figma.currentPage.appendChild(parentComponent);
-      parentComponent.x = 0;
-        parentComponent.y = colorData.length === 1 ? 0 : (colorData.length - 1) * 1400;
+    // Create variables if enabled
+    if (msg.createVariables && colorData.length > 0) {
+      await createColorVariables(colorData);
+    }
+
+    // Build variable lookup (name -> Variable) after creation, for binding paints.
+    // Note: only local variables are supported here (created by this plugin).
+    let variableByName: Map<string, Variable> | undefined;
+    let collectionsByName: Map<string, VariableCollection> | undefined;
+    if (msg.createVariables) {
+      const vars = await figma.variables.getLocalVariablesAsync();
+      variableByName = new Map(vars.map((v) => [v.name, v]));
+
+      const collections = await figma.variables.getLocalVariableCollectionsAsync();
+      collectionsByName = new Map(collections.map((c) => [c.name, c]));
+    }
+
+    // Create components if enabled (after variables so we can bind paints)
+    if (msg.createComponents && colorData.length > 0) {
+      for (let idx = 0; idx < colorData.length; idx++) {
+        const {
+          colorName,
+          lightPalette,
+          darkPalette,
+          collectionName,
+          useLightMode,
+          useDarkMode,
+          useDefaultMode,
+        } = colorData[idx];
+
+        const parentComponent = await createParentComponent(colorName, msg.namingFormat);
+        figma.currentPage.appendChild(parentComponent);
+        parentComponent.x = 0;
+        parentComponent.y = idx * 1400;
+
+        const collection = collectionsByName?.get(collectionName);
+        const defaultModeId = collection?.modes.find((m) => m.name === "Default")?.modeId;
+        const lightModeId = collection?.modes.find((m) => m.name === "Light")?.modeId;
+        const darkModeId = collection?.modes.find((m) => m.name === "Dark")?.modeId;
+
+        // If Default mode is selected, create a single Default frame
+        if (useDefaultMode && lightPalette.length > 0) {
+          const defaultFrame = figma.createFrame();
+          defaultFrame.name = `${colorName} - Default Mode`;
+          defaultFrame.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
+          defaultFrame.paddingLeft = 24;
+          defaultFrame.paddingRight = 24;
+          defaultFrame.paddingTop = 24;
+          defaultFrame.paddingBottom = 24;
+          defaultFrame.itemSpacing = 16;
+          defaultFrame.layoutMode = "HORIZONTAL";
+          defaultFrame.counterAxisSizingMode = "AUTO";
+          defaultFrame.primaryAxisSizingMode = "AUTO";
+          figma.currentPage.appendChild(defaultFrame);
+          defaultFrame.x = 0;
+          defaultFrame.y = idx * 1400 + 450;
+
+          if (collection && defaultModeId) {
+            defaultFrame.setExplicitVariableModeForCollection(collection, defaultModeId);
+          }
+
+          for (const color of lightPalette) {
+            const instance = await createColorInstance(
+              parentComponent,
+              colorName,
+              color.name,
+              color.hex,
+              color.oklch,
+              msg.namingFormat,
+              0,
+              0,
+              { collectionName, variableByName }
+            );
+            defaultFrame.appendChild(instance);
+          }
+        } else {
 
         // Create Light mode frame (only if useLightMode is true)
         if (useLightMode && lightPalette.length > 0) {
           const lightFrame = figma.createFrame();
-          lightFrame.name = `${colorInput.colorName} - Light Mode`;
+          lightFrame.name = `${colorName} - Light Mode`;
           lightFrame.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
           lightFrame.paddingLeft = 24;
           lightFrame.paddingRight = 24;
@@ -845,19 +961,24 @@ async function handleGeneratePalette(msg: PaletteMessage) {
           lightFrame.primaryAxisSizingMode = "AUTO";
           figma.currentPage.appendChild(lightFrame);
           lightFrame.x = 0;
-          lightFrame.y = (colorData.length - 1) * 1400 + 450;
+          lightFrame.y = idx * 1400 + 450;
 
-          // Create Light mode instances inside frame
-      for (const color of lightPalette) {
-        const instance = await createColorInstance(
-          parentComponent,
-              colorInput.colorName,
-          color.name,
-          color.hex,
+          // Ensure the variable mode resolves to Light inside this frame
+          if (collection && lightModeId) {
+            lightFrame.setExplicitVariableModeForCollection(collection, lightModeId);
+          }
+
+          for (const color of lightPalette) {
+            const instance = await createColorInstance(
+              parentComponent,
+              colorName,
+              color.name,
+              color.hex,
               color.oklch,
-          msg.namingFormat,
+              msg.namingFormat,
               0,
-              0
+              0,
+              { collectionName, variableByName }
             );
             lightFrame.appendChild(instance);
           }
@@ -866,7 +987,7 @@ async function handleGeneratePalette(msg: PaletteMessage) {
         // Create Dark mode frame and instances (only if useDarkMode is true)
         if (useDarkMode && darkPalette.length > 0) {
           const darkFrame = figma.createFrame();
-          darkFrame.name = `${colorInput.colorName} - Dark Mode`;
+          darkFrame.name = `${colorName} - Dark Mode`;
           darkFrame.fills = [{ type: "SOLID", color: { r: 0.1, g: 0.1, b: 0.1 } }];
           darkFrame.paddingLeft = 24;
           darkFrame.paddingRight = 24;
@@ -878,32 +999,34 @@ async function handleGeneratePalette(msg: PaletteMessage) {
           darkFrame.primaryAxisSizingMode = "AUTO";
           figma.currentPage.appendChild(darkFrame);
           darkFrame.x = 0;
-          darkFrame.y = (colorData.length - 1) * 1400 + 900;
+          darkFrame.y = idx * 1400 + 900;
 
-        for (const color of darkPalette) {
-          const instance = await createColorInstance(
-            parentComponent,
-              colorInput.colorName,
-            color.name,
-            color.hex,
+          // Ensure the variable mode resolves to Dark inside this frame
+          if (collection && darkModeId) {
+            darkFrame.setExplicitVariableModeForCollection(collection, darkModeId);
+          }
+
+          for (const color of darkPalette) {
+            const instance = await createColorInstance(
+              parentComponent,
+              colorName,
+              color.name,
+              color.hex,
               color.oklch,
-            msg.namingFormat,
+              msg.namingFormat,
               0,
-              0
-          );
+              0,
+              { collectionName, variableByName }
+            );
             darkFrame.appendChild(instance);
           }
+        }
         }
       }
     }
 
-    // Create variables if enabled
-    if (msg.createVariables && colorData.length > 0) {
-      await createColorVariables(colorData);
-    }
-
     if (colorData.length > 0) {
-      figma.notify(`✅ Generated ${colorData.length} palette(s) successfully!`);
+      figma.notify(`✅ Generated ${colorData.length} ramp(s) successfully!`);
       if (msg.createComponents) {
         figma.viewport.scrollAndZoomIntoView(figma.currentPage.children);
       }
@@ -918,6 +1041,12 @@ async function handleGeneratePalette(msg: PaletteMessage) {
 figma.showUI(__html__, { width: 340, height: 800, themeColors: true });
 
 figma.ui.onmessage = async (msg) => {
+  if (msg?.type === "ui-resize" && typeof msg.height === "number") {
+    // Clamp to a reasonable range for the plugin panel
+    const h = Math.max(360, Math.min(900, Math.floor(msg.height)));
+    figma.ui.resize(340, h);
+    return;
+  }
   if (msg.type === "generate-palette") {
     await handleGeneratePalette(msg);
   } else if (msg.type === "import-json") {

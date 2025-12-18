@@ -12,6 +12,7 @@
     "fix:html": "node -e \"const fs=require('fs');const path=require('path');const src=path.join('dist','public','public','index.html');const dest=path.join('dist','public','index.html');if(fs.existsSync(src)){fs.renameSync(src,dest);fs.rmSync(path.join('dist','public','public'),{recursive:true,force:true});console.log('✅ HTML movido a ubicación correcta');}\""
   },
   "dependencies": {
+    "figma-plugin-ds": "^1.0.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },

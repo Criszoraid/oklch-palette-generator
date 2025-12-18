@@ -46,7 +46,7 @@ This will create:
    - Choose a color (default is blue #4169E1)
    - Enter a color name (e.g., "blue")
    - Check the options you want
-   - Click "✨ Generar Paleta en Figma"
+   - Click "✨ Generar Rampa en Figma"
 
 ## 🔧 Development Workflow
 
