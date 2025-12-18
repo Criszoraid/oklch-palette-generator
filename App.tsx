@@ -4,8 +4,24 @@ import { JsonImport } from "./components/JsonImport";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<"manual" | "json">("manual");
-  const [uiDarkMode, setUiDarkMode] = useState(false);
+  const [isDark, setIsDark] = useState(() => {
+    if (typeof window === "undefined") return false;
+    if (typeof window.matchMedia !== "function") return false;
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  });
   const appRef = useRef<HTMLDivElement | null>(null);
+
+  // Sync UI theme with host (Figma) theme automatically.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (typeof window.matchMedia !== "function") return;
+    const mql = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = (e: MediaQueryListEvent) => setIsDark(e.matches);
+    // Set initial in case it changed between render and effect
+    setIsDark(mql.matches);
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
 
   // Auto-resize Figma UI to content height to avoid empty space below content.
   useEffect(() => {
@@ -42,12 +58,12 @@ export default function App() {
       if (raf) cancelAnimationFrame(raf);
       ro.disconnect();
     };
-  }, [activeTab, uiDarkMode]);
+  }, [activeTab, isDark]);
 
   return (
     <div
       ref={appRef}
-      className={`bg-app text-app ${uiDarkMode ? "theme-dark" : "theme-light"}`}
+      className={`bg-app text-app ${isDark ? "theme-dark" : "theme-light"}`}
     >
       {/* Header */}
       <div className="border-b border-app bg-app px-4 py-3 flex items-start justify-between gap-3">
@@ -57,20 +73,6 @@ export default function App() {
             Plugin para crear rampas de colores con contraste WCAG y APCA
           </p>
         </div>
-
-        <label className="flex items-center gap-2 cursor-pointer select-none">
-          <span className="text-[11px] text-muted">Dark</span>
-          <span className="switch">
-            <input
-              type="checkbox"
-              checked={uiDarkMode}
-              onChange={(e) => setUiDarkMode(e.target.checked)}
-              aria-label="Modo oscuro"
-            />
-            <span className="switch-track" />
-            <span className="switch-thumb" />
-          </span>
-        </label>
       </div>
 
       {/* Tabs */}

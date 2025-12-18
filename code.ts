@@ -203,7 +203,8 @@ function generatePalette(
   numberOfVariants: number = 9
 ): Array<{ name: string; hex: string; rgb: { r: number; g: number; b: number }; oklch: OKLCHColor }> {
   // Calculate lightness range based on mode
-  const minLightness = isDarkMode ? 36.0 : 24.1;
+  // Light ramp should reach down to 5 (requested), dark ramp keeps its floor.
+  const minLightness = isDarkMode ? 36.0 : 5.0;
   const maxLightness = isDarkMode ? 98.5 : 97.0;
   
   // Generate interpolated shades with smooth transitions
