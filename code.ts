@@ -205,7 +205,7 @@ function generatePalette(
   // Calculate lightness range based on mode
   // Use the same lightness range for both Light and Dark modes (requested).
   const minLightness = 5.0;
-  const maxLightness = 90.0;
+  const maxLightness = 80.0;
   
   // Generate interpolated shades with smooth transitions
   // Always interpolate evenly from maxLightness to minLightness to avoid jumps
