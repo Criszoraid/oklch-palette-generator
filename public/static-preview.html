@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OKLCH Palette Generator - Preview</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html, body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        font-size: 12px;
+        color: #333;
+        background: #fff;
+      }
+      .min-h-screen {
+        min-height: 100vh;
+        background: #fff;
+      }
+      .flex {
+        display: flex;
+      }
+      .flex-col {
+        flex-direction: column;
+      }
+      .gap-2 {
+        gap: 8px;
+      }
+      .gap-3 {
+        gap: 12px;
+      }
+      .gap-4 {
+        gap: 16px;
+      }
+      .items-center {
+        align-items: center;
+      }
+      .justify-between {
+        justify-content: space-between;
+      }
+      .w-full {
+        width: 100%;
+      }
+      .p-3 {
+        padding: 12px;
+      }
+      .p-4 {
+        padding: 16px;
+      }
+      .px-2 {
+        padding-left: 8px;
+        padding-right: 8px;
+      }
+      .px-3 {
+        padding-left: 12px;
+        padding-right: 12px;
+      }
+      .px-4 {
+        padding-left: 16px;
+        padding-right: 16px;
+      }
+      .py-1 {
+        padding-top: 4px;
+        padding-bottom: 4px;
+      }
+      .py-1\.5 {
+        padding-top: 6px;
+        padding-bottom: 6px;
+      }
+      .py-2 {
+        padding-top: 8px;
+        padding-bottom: 8px;
+      }
+      .py-3 {
+        padding-top: 12px;
+        padding-bottom: 12px;
+      }
+      .mb-1 {
+        margin-bottom: 4px;
+      }
+      .mb-2 {
+        margin-bottom: 8px;
+      }
+      .mb-3 {
+        margin-bottom: 12px;
+      }
+      .mt-1 {
+        margin-top: 4px;
+      }
+      .mt-2 {
+        margin-top: 8px;
+      }
+      .rounded {
+        border-radius: 4px;
+      }
+      .border {
+        border-width: 1px;
+        border-style: solid;
+      }
+      .border-b {
+        border-bottom-width: 1px;
+        border-bottom-style: solid;
+      }
+      .border-b-2 {
+        border-bottom-width: 2px;
+        border-bottom-style: solid;
+      }
+      .bg-white {
+        background-color: #fff;
+      }
+      .bg-\[#fafafa\] {
+        background-color: #fafafa;
+      }
+      .bg-\[#18a0fb\] {
+        background-color: #18a0fb;
+      }
+      .bg-\[#0d8ce8\] {
+        background-color: #0d8ce8;
+      }
+      .bg-\[#f0f0f0\] {
+        background-color: #f0f0f0;
+      }
+      .text-black {
+        color: #000;
+      }
+      .text-white {
+        color: #fff;
+      }
+      .text-\[#333\] {
+        color: #333;
+      }
+      .text-\[#666\] {
+        color: #666;
+      }
+      .text-\[#999\] {
+        color: #999;
+      }
+      .text-\[#ff4444\] {
+        color: #ff4444;
+      }
+      .text-\[10px\] {
+        font-size: 10px;
+      }
+      .text-\[11px\] {
+        font-size: 11px;
+      }
+      .text-\[12px\] {
+        font-size: 12px;
+      }
+      .text-\[13px\] {
+        font-size: 13px;
+      }
+      .uppercase {
+        text-transform: uppercase;
+      }
+      .tracking-wide {
+        letter-spacing: 0.025em;
+      }
+      .font-medium {
+        font-weight: 500;
+      }
+      .font-semibold {
+        font-weight: 600;
+      }
+      .block {
+        display: block;
+      }
+      .cursor-pointer {
+        cursor: pointer;
+      }
+      .transition-colors {
+        transition-property: color, background-color, border-color;
+        transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+        transition-duration: 150ms;
+      }
+      .border-\[#e5e5e5\] {
+        border-color: #e5e5e5;
+      }
+      .border-\[#ccc\] {
+        border-color: #ccc;
+      }
+      .border-\[#18a0fb\] {
+        border-color: #18a0fb;
+      }
+      .hover\:bg-\[#e5e5e5\]:hover {
+        background-color: #e5e5e5;
+      }
+      .hover\:bg-\[#0d8ce8\]:hover {
+        background-color: #0d8ce8;
+      }
+      .hover\:text-black:hover {
+        color: #000;
+      }
+      .hover\:text-\[#ff4444\]:hover {
+        color: #ff4444;
+      }
+      input, select, textarea {
+        font-family: inherit;
+        outline: none;
+      }
+      input[type="text"],
+      input[type="number"],
+      input[type="color"],
+      select {
+        border: 1px solid #ccc;
+        border-radius: 4px;
+      }
+      input[type="text"],
+      input[type="number"],
+      select {
+        padding: 6px 8px;
+      }
+      input[type="color"] {
+        width: 48px;
+        height: 32px;
+        cursor: pointer;
+      }
+      button {
+        font-family: inherit;
+        cursor: pointer;
+        border: none;
+        outline: none;
+      }
+      h1 {
+        font-size: 16px;
+        font-weight: 600;
+        color: #000;
+      }
+      h2 {
+        font-size: 14px;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="min-h-screen bg-white">
+      <!-- Header -->
+      <div class="border-b border-[#e5e5e5] bg-white px-4 py-3">
+        <h1>Generador de Paletas OKLCH</h1>
+        <p class="text-[#999] text-[11px] mt-1">
+          Plugin para crear paletas de colores con contraste WCAG y APCA
+        </p>
+      </div>
+
+      <!-- Tabs -->
+      <div class="flex border-b border-[#e5e5e5]">
+        <button class="px-4 py-2 text-[13px] transition-colors border-b-2 border-[#18a0fb] text-black">
+          Configuración Manual
+        </button>
+        <button class="px-4 py-2 text-[13px] transition-colors text-[#999] hover:text-black">
+          Importar JSON
+        </button>
+      </div>
+
+      <!-- Content -->
+      <div class="p-4">
+        <div class="flex flex-col gap-4">
+          <!-- Colors List -->
+          <div>
+            <div class="mb-3 flex items-center justify-between border-b border-[#e5e5e5] pb-2">
+              <label class="block text-[#333] text-[12px] font-semibold">
+                Colores (2)
+              </label>
+              <button class="rounded bg-[#18a0fb] px-4 py-2 text-[12px] font-semibold text-white transition-colors hover:bg-[#0d8ce8]">
+                + Agregar Color
+              </button>
+            </div>
+
+            <div class="flex flex-col gap-3">
+              <!-- Color 1 -->
+              <div class="rounded border border-[#e5e5e5] p-3 bg-[#fafafa]">
+                <div class="mb-2 flex items-center justify-between">
+                  <span class="text-[12px] font-medium text-[#333]">
+                    Color 1
+                  </span>
+                  <button class="text-[#999] text-[11px] hover:text-[#ff4444]">
+                    ✕ Eliminar
+                  </button>
+                </div>
+
+                <!-- Color Name -->
+                <div class="mb-2">
+                  <label class="mb-1 block text-[#666] text-[10px] uppercase tracking-wide">
+                    Nombre
+                  </label>
+                  <input type="text" value="blue" class="w-full rounded border border-[#ccc] px-2 py-1.5 text-[12px] text-black" placeholder="blue" />
+                </div>
+
+                <!-- Input Mode Toggle -->
+                <div class="mb-2">
+                  <label class="mb-1 block text-[#666] text-[10px] uppercase tracking-wide">
+                    Modo
+                  </label>
+                  <div class="flex gap-2">
+                    <button class="flex-1 rounded px-2 py-1 text-[11px] transition-colors bg-[#18a0fb] text-white">
+                      HEX
+                    </button>
+                    <button class="flex-1 rounded px-2 py-1 text-[11px] transition-colors bg-[#f0f0f0] text-[#333] hover:bg-[#e5e5e5]">
+                      OKLCH
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Color Input -->
+                <div>
+                  <label class="mb-1 block text-[#666] text-[10px] uppercase tracking-wide">
+                    Color HEX
+                  </label>
+                  <div class="flex gap-2">
+                    <input type="color" value="#4169E1" class="h-8 w-12 cursor-pointer rounded border border-[#ccc]" />
+                    <input type="text" value="#4169E1" class="flex-1 rounded border border-[#ccc] px-2 py-1.5 text-[12px] text-black" placeholder="#4169E1" />
+                  </div>
+              </div>
+
+              <!-- Advanced Options -->
+              <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e5e5e5;">
+                <label style="display: block; margin-bottom: 8px; color: #333; font-size: 11px; font-weight: 600;">
+                  Opciones Avanzadas de Variable
+                </label>
+                
+                <!-- Collection Name -->
+                <div style="margin-bottom: 8px;">
+                  <label style="display: block; margin-bottom: 4px; color: #666; font-size: 10px; text-transform: uppercase; letter-spacing: 0.025em;">
+                    Colección
+                  </label>
+                  <input type="text" value="primitives" style="width: 100%; border-radius: 4px; border: 1px solid #ccc; padding: 6px 8px; font-size: 12px; color: #000;" placeholder="primitives" />
+                  <p style="margin-top: 4px; font-size: 9px; color: #999;">
+                    Estructura: primitives/color/blue/nombre
+                  </p>
+                </div>
+
+                <!-- Number of Variants -->
+                <div style="margin-bottom: 8px;">
+                  <label style="display: block; margin-bottom: 4px; color: #666; font-size: 10px; text-transform: uppercase; letter-spacing: 0.025em;">
+                    Número de Variantes
+                  </label>
+                  <input type="number" min="1" max="20" value="9" style="width: 100%; border-radius: 4px; border: 1px solid #ccc; padding: 6px 8px; font-size: 12px; color: #000;" />
+                  <p style="margin-top: 4px; font-size: 9px; color: #999;">
+                    Número de tonos en la paleta (100, 200, 300...)
+                  </p>
+                </div>
+
+                <!-- Light/Dark Mode -->
+                <div style="margin-bottom: 8px;">
+                  <label style="display: block; margin-bottom: 4px; color: #666; font-size: 10px; text-transform: uppercase; letter-spacing: 0.025em;">
+                    Modos
+                  </label>
+                  <div style="display: flex; gap: 8px;">
+                    <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                      <input type="checkbox" checked style="width: 12px; height: 12px;" />
+                      <span style="font-size: 11px; color: #333;">Light</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                      <input type="checkbox" checked style="width: 12px; height: 12px;" />
+                      <span style="font-size: 11px; color: #333;">Dark</span>
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Description -->
+                <div style="margin-bottom: 8px;">
+                  <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 4px;">
+                    <input type="checkbox" style="width: 12px; height: 12px;" />
+                    <span style="font-size: 10px; color: #666; text-transform: uppercase; letter-spacing: 0.025em;">
+                      Agregar Descripción
+                    </span>
+                  </label>
+                </div>
+
+                <!-- Code Syntax -->
+                <div style="margin-bottom: 8px;">
+                  <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <input type="checkbox" style="width: 12px; height: 12px;" />
+                    <span style="font-size: 10px; color: #666; text-transform: uppercase; letter-spacing: 0.025em;">
+                      Incluir Sintaxis de Código
+                    </span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Color 2 -->
+            <div class="rounded border border-[#e5e5e5] p-3 bg-[#fafafa]">
+              <div class="mb-2 flex items-center justify-between">
+                <span class="text-[12px] font-medium text-[#333]">
+                  Color 2
+                </span>
+              </div>
+
+                <!-- Color Name -->
+                <div class="mb-2">
+                  <label class="mb-1 block text-[#666] text-[10px] uppercase tracking-wide">
+                    Nombre
+                  </label>
+                  <input type="text" value="color-2" class="w-full rounded border border-[#ccc] px-2 py-1.5 text-[12px] text-black" placeholder="blue" />
+                </div>
+
+                <!-- Input Mode Toggle -->
+                <div class="mb-2">
+                  <label class="mb-1 block text-[#666] text-[10px] uppercase tracking-wide">
+                    Modo
+                  </label>
+                  <div class="flex gap-2">
+                    <button class="flex-1 rounded px-2 py-1 text-[11px] transition-colors bg-[#18a0fb] text-white">
+                      HEX
+                    </button>
+                    <button class="flex-1 rounded px-2 py-1 text-[11px] transition-colors bg-[#f0f0f0] text-[#333] hover:bg-[#e5e5e5]">
+                      OKLCH
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Color Input -->
+                <div>
+                  <label class="mb-1 block text-[#666] text-[10px] uppercase tracking-wide">
+                    Color HEX
+                  </label>
+                  <div class="flex gap-2">
+                    <input type="color" value="#4169E1" class="h-8 w-12 cursor-pointer rounded border border-[#ccc]" />
+                    <input type="text" value="#4169E1" class="flex-1 rounded border border-[#ccc] px-2 py-1.5 text-[12px] text-black" placeholder="#4169E1" />
+                  </div>
+                </div>
+
+                <!-- Advanced Options -->
+                <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e5e5e5;">
+                  <label style="display: block; margin-bottom: 8px; color: #333; font-size: 11px; font-weight: 600;">
+                    Opciones Avanzadas de Variable
+                  </label>
+                  
+                  <!-- Collection Name -->
+                  <div style="margin-bottom: 8px;">
+                    <label style="display: block; margin-bottom: 4px; color: #666; font-size: 10px; text-transform: uppercase; letter-spacing: 0.025em;">
+                      Colección
+                    </label>
+                    <input type="text" value="primitives" style="width: 100%; border-radius: 4px; border: 1px solid #ccc; padding: 6px 8px; font-size: 12px; color: #000;" placeholder="primitives" />
+                    <p style="margin-top: 4px; font-size: 9px; color: #999;">
+                      Estructura: primitives/color/color-2/nombre
+                    </p>
+                  </div>
+
+                  <!-- Number of Variants -->
+                  <div style="margin-bottom: 8px;">
+                    <label style="display: block; margin-bottom: 4px; color: #666; font-size: 10px; text-transform: uppercase; letter-spacing: 0.025em;">
+                      Número de Variantes
+                    </label>
+                    <input type="number" min="1" max="20" value="9" style="width: 100%; border-radius: 4px; border: 1px solid #ccc; padding: 6px 8px; font-size: 12px; color: #000;" />
+                    <p style="margin-top: 4px; font-size: 9px; color: #999;">
+                      Número de tonos en la paleta (100, 200, 300...)
+                    </p>
+                  </div>
+
+                  <!-- Light/Dark Mode -->
+                  <div style="margin-bottom: 8px;">
+                    <label style="display: block; margin-bottom: 4px; color: #666; font-size: 10px; text-transform: uppercase; letter-spacing: 0.025em;">
+                      Modos
+                    </label>
+                    <div style="display: flex; gap: 8px;">
+                      <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                        <input type="checkbox" checked style="width: 12px; height: 12px;" />
+                        <span style="font-size: 11px; color: #333;">Light</span>
+                      </label>
+                      <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                        <input type="checkbox" checked style="width: 12px; height: 12px;" />
+                        <span style="font-size: 11px; color: #333;">Dark</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <!-- Description -->
+                  <div style="margin-bottom: 8px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 4px;">
+                      <input type="checkbox" style="width: 12px; height: 12px;" />
+                      <span style="font-size: 10px; color: #666; text-transform: uppercase; letter-spacing: 0.025em;">
+                        Agregar Descripción
+                      </span>
+                    </label>
+                  </div>
+
+                  <!-- Code Syntax -->
+                  <div style="margin-bottom: 8px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                      <input type="checkbox" style="width: 12px; height: 12px;" />
+                      <span style="font-size: 10px; color: #666; text-transform: uppercase; letter-spacing: 0.025em;">
+                        Incluir Sintaxis de Código
+                      </span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Naming Format -->
+          <div>
+            <label class="mb-2 block text-[#333] text-[11px] uppercase tracking-wide">
+              Formato de Nombres
+            </label>
+            <select class="w-full rounded border border-[#ccc] px-3 py-2 text-[13px] text-black">
+              <option value="kebab-case">kebab-case (blue-500)</option>
+              <option value="camelCase" selected>camelCase (blue500)</option>
+              <option value="PascalCase">PascalCase (Blue500)</option>
+              <option value="snake_case">snake_case (blue_500)</option>
+            </select>
+          </div>
+
+          <!-- Options -->
+          <div class="flex flex-col gap-2">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked class="h-4 w-4" />
+              <span class="text-[13px] text-[#333]">Crear componentes en Figma</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked class="h-4 w-4" />
+              <span class="text-[13px] text-[#333]">Crear variables de color</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked class="h-4 w-4" />
+              <span class="text-[13px] text-[#333]">Generar paleta Dark Mode</span>
+            </label>
+          </div>
+
+          <!-- Generate Button -->
+          <button class="mt-2 rounded bg-[#18a0fb] px-4 py-3 text-white text-[13px] transition-colors hover:bg-[#0d8ce8]">
+            ✨ Generar Paleta en Figma
+          </button>
+        </div>
+      </div>
+
+      <!-- Add Color Button at the bottom -->
+      <div style="padding: 16px;">
+        <button style="width: 100%; border-radius: 4px; background-color: #18a0fb; padding: 8px 16px; font-size: 12px; font-weight: 600; color: white; border: none; cursor: pointer; transition: background-color 150ms;">
+          + Agregar Color
+        </button>
+      </div>
+    </div>
+  </body>
+</html>
+
