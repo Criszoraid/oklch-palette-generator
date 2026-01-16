@@ -64,8 +64,7 @@ This will create:
 ├── App.tsx               # Main React component
 ├── components/           # React components for UI
 │   ├── PaletteConfigurator.tsx
-│   ├── JsonImport.tsx
-│   └── PalettePreview.tsx
+│   └── JsonImport.tsx
 ├── public/
 │   └── index.html        # HTML template
 ├── src/
@@ -107,7 +106,6 @@ This will create:
 
 ## 📝 Notes
 
-- The preview component is included but hidden from users (only for development testing)
 - Color calculations use precise OKLCH → RGB conversion
 - All palettes maintain the 100-900 scale (light to dark)
 - Dark mode palettes have adjusted lightness for better visibility on dark backgrounds
