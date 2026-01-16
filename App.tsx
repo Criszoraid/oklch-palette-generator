@@ -23,6 +23,18 @@ export default function App() {
     return () => mql.removeEventListener("change", onChange);
   }, []);
 
+  // Ensure CSS variables also apply to <html>/<body> to avoid white seams
+  // when the plugin viewport shows any area outside our root wrapper.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const el = document.documentElement;
+    if (isDark) {
+      el.classList.add("theme-dark");
+    } else {
+      el.classList.remove("theme-dark");
+    }
+  }, [isDark]);
+
   // Auto-resize Figma UI to content height to avoid empty space below content.
   useEffect(() => {
     if (!appRef.current) return;

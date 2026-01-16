@@ -68,7 +68,8 @@ function hexToOklch(hex: string): OKLCHColor {
 function oklchToRgb(
   l: number,
   c: number,
-  h: number
+  h: number,
+  clamp: boolean = true
 ): { r: number; g: number; b: number } {
   const hRad = (h * Math.PI) / 180;
   const a_val = c * Math.cos(hRad);
@@ -99,9 +100,11 @@ function oklchToRgb(
   let g = gammaCorrect(g_lin);
   let b = gammaCorrect(b_lin);
 
-  r = Math.max(0, Math.min(1, r));
-  g = Math.max(0, Math.min(1, g));
-  b = Math.max(0, Math.min(1, b));
+  if (clamp) {
+    r = Math.max(0, Math.min(1, r));
+    g = Math.max(0, Math.min(1, g));
+    b = Math.max(0, Math.min(1, b));
+  }
 
   return { r, g, b };
 }
@@ -112,6 +115,26 @@ function rgbToHex(r: number, g: number, b: number): string {
       .toString(16)
       .padStart(2, "0");
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase();
+}
+
+function isRgbInGamut(rgb: { r: number; g: number; b: number }): boolean {
+  return (
+    rgb.r >= 0 &&
+    rgb.r <= 1 &&
+    rgb.g >= 0 &&
+    rgb.g <= 1 &&
+    rgb.b >= 0 &&
+    rgb.b <= 1
+  );
+}
+
+function isPureWhite(rgb: { r: number; g: number; b: number }): boolean {
+  // Treat values that round to 255 as pure white. This matches hex output behavior.
+  return (
+    Math.round(rgb.r * 255) === 255 &&
+    Math.round(rgb.g * 255) === 255 &&
+    Math.round(rgb.b * 255) === 255
+  );
 }
 
 // Naming utilities
@@ -202,10 +225,20 @@ function generatePalette(
   isDarkMode: boolean = false,
   numberOfVariants: number = 9
 ): Array<{ name: string; hex: string; rgb: { r: number; g: number; b: number }; oklch: OKLCHColor }> {
-  // Calculate lightness range based on mode
-  // Use the same lightness range for both Light and Dark modes (requested).
-  const minLightness = 5.0;
-  const maxLightness = 92.0;
+  // Lightness tuning
+  // Goal: Light and Dark should have similar perceived "step jumps".
+  // We do that by:
+  // - Using the same curve for both modes
+  // - Using the same range width, but shifting Dark to overall darker values
+  const lightMin = 26.0;
+  const lightMax = 98.2; // Light mode: very light, but we additionally enforce "not pure white" for 100
+  const rangeWidth = lightMax - lightMin;
+
+  const darkMax = 90.0; // keep Dark mode from getting too close to white
+  const darkMin = Math.max(0, darkMax - rangeWidth);
+
+  const minLightness = isDarkMode ? darkMin : lightMin;
+  const maxLightness = isDarkMode ? darkMax : lightMax;
   
   // Generate interpolated shades with smooth transitions
   // Always interpolate evenly from maxLightness to minLightness to avoid jumps
@@ -217,7 +250,9 @@ function generatePalette(
     
     // Calculate position in the range (0 to 1)
     // 0 = lightest (maxLightness), 1 = darkest (minLightness)
-    const position = numberOfVariants === 1 ? 0.5 : i / (numberOfVariants - 1);
+    const positionRaw = numberOfVariants === 1 ? 0.5 : i / (numberOfVariants - 1);
+    // Use the same curve for both modes so step spacing feels consistent.
+    const position = Math.pow(positionRaw, 1.55);
     
     // Interpolate lightness from max to min (smooth linear interpolation)
     // This ensures no jumps in the palette - smooth gradient
@@ -226,29 +261,76 @@ function generatePalette(
     // Interpolate chroma factor based on position
     // Use a curve that starts low, peaks in the middle, and ends slightly lower
     let chromaFactor: number;
-    if (position < 0.5) {
-      // First half: from 0.7-0.75 to 1.0 (increasing)
-      chromaFactor = 0.7 + (position * 2) * 0.3;
-    } else {
-      // Second half: from 1.0 to 0.98-1.0 (slightly decreasing)
-      chromaFactor = 1.0 - ((position - 0.5) * 2) * 0.02;
-    }
-    
-    // Adjust chroma factor based on mode
     if (isDarkMode) {
-      chromaFactor = chromaFactor * 0.95; // Slightly reduce chroma for dark mode
+      // Dark mode: keep chroma essentially constant so perceived "jumps" between
+      // steps are driven mostly by lightness (more uniform ramp).
+      chromaFactor = 0.95;
+    } else {
+      if (position < 0.5) {
+        // First half: from 0.7-0.75 to 1.0 (increasing)
+        chromaFactor = 0.7 + (position * 2) * 0.3;
+      } else {
+        // Second half: from 1.0 to 0.98-1.0 (slightly decreasing)
+        chromaFactor = 1.0 - ((position - 0.5) * 2) * 0.02;
+      }
+
+      // Light mode: reduce chroma more for the lightest steps to avoid gamut clipping,
+      // which otherwise can make multiple light swatches look almost identical.
+      // Stronger damping near white so 100/200/300 transition is smoother.
+      chromaFactor = chromaFactor * (0.35 + 0.65 * positionRaw); // 0.35 at lightest -> 1.0 at darkest
     }
     
     shades.push({
       name,
       lightness: Math.max(0, Math.min(100, lightness)),
-      chromaFactor: Math.max(0.5, Math.min(1.1, chromaFactor)),
+      chromaFactor: Math.max(isDarkMode ? 0.5 : 0.35, Math.min(1.1, chromaFactor)),
     });
   }
 
   return shades.map((shade) => {
-    const chroma = baseOklch.chroma * shade.chromaFactor;
-    const rgb = oklchToRgb(shade.lightness, chroma, baseOklch.hue);
+    // Gamut mapping: reduce chroma until the color fits in sRGB.
+    // Without this, very light colors tend to clip to (1,0,0)/(1,1,1) and multiple
+    // steps can look almost identical.
+    // For near-white steps in Light Mode, enforce a tiny amount of chroma so the
+    // swatch stays tinted (A: "sin llegar a blanco").
+    const nearWhite = !isDarkMode && shade.name === "100";
+    const desiredMinTintChroma = nearWhite
+      ? Math.min(Math.max(baseOklch.chroma * 0.06, 0.008), 0.03)
+      : 0;
+
+    let chroma = Math.max(baseOklch.chroma * shade.chromaFactor, desiredMinTintChroma);
+    let lightness = shade.lightness;
+
+    let rgbUnclamped = oklchToRgb(lightness, chroma, baseOklch.hue, false);
+    let guard = 0;
+    while (!isRgbInGamut(rgbUnclamped) && chroma > 0.0005 && guard < 30) {
+      chroma *= 0.9;
+      rgbUnclamped = oklchToRgb(lightness, chroma, baseOklch.hue, false);
+      guard++;
+    }
+
+    let rgb = oklchToRgb(lightness, chroma, baseOklch.hue, true);
+
+    // If it still rounds to pure white, nudge lightness down a bit until it doesn't.
+    if (nearWhite) {
+      let whiteGuard = 0;
+      while (isPureWhite(rgb) && whiteGuard < 12) {
+        lightness = Math.max(0, lightness - 0.4);
+        // Re-run gamut mapping at this slightly lower lightness.
+        let c2 = Math.max(chroma, desiredMinTintChroma);
+        let rgb2Unclamped = oklchToRgb(lightness, c2, baseOklch.hue, false);
+        let g2 = 0;
+        while (!isRgbInGamut(rgb2Unclamped) && c2 > 0.0005 && g2 < 30) {
+          c2 *= 0.9;
+          rgb2Unclamped = oklchToRgb(lightness, c2, baseOklch.hue, false);
+          g2++;
+        }
+        chroma = c2;
+        rgb = oklchToRgb(lightness, chroma, baseOklch.hue, true);
+        whiteGuard++;
+      }
+    }
+
     const hex = rgbToHex(rgb.r, rgb.g, rgb.b);
 
     return {
@@ -256,7 +338,7 @@ function generatePalette(
       hex,
       rgb,
       oklch: {
-        lightness: shade.lightness,
+        lightness,
         chroma,
         hue: baseOklch.hue,
       },
@@ -294,7 +376,7 @@ async function createParentComponent(
   const container = figma.createRectangle();
   container.resize(240, 360);
   container.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
-  container.cornerRadius = 12;
+  container.cornerRadius = 20;
   container.y = 32;
   container.name = "container";
   component.appendChild(container);
@@ -303,7 +385,11 @@ async function createParentComponent(
   const swatch = figma.createRectangle();
   swatch.resize(240, 180);
   swatch.fills = [{ type: "SOLID", color: { r: 0.85, g: 0.85, b: 0.85 } }];
-  swatch.cornerRadius = 12;
+  // Match container radius on top corners only (cleaner card look)
+  swatch.topLeftRadius = 20;
+  swatch.topRightRadius = 20;
+  swatch.bottomLeftRadius = 0;
+  swatch.bottomRightRadius = 0;
   swatch.y = 32;
   swatch.name = "color-swatch";
   component.appendChild(swatch);
@@ -461,6 +547,7 @@ async function createColorInstance(
   options?: {
     collectionName?: string;
     variableByName?: Map<string, Variable>;
+    isDarkModeFrame?: boolean;
   }
 ): Promise<InstanceNode> {
   const instance = parent.createInstance();
@@ -498,6 +585,13 @@ async function createColorInstance(
   if (nameText) {
     await figma.loadFontAsync({ family: "Inter", style: "Semi Bold" });
     nameText.characters = instanceName;
+    // This label sits outside the card container; in Dark Mode it sits on a dark background.
+    nameText.fills = [
+      {
+        type: "SOLID",
+        color: options?.isDarkModeFrame ? { r: 1, g: 1, b: 1 } : { r: 0.2, g: 0.2, b: 0.2 },
+      },
+    ];
   }
 
   // Update color swatch
@@ -902,8 +996,31 @@ async function handleGeneratePalette(msg: PaletteMessage) {
 
         const parentComponent = await createParentComponent(colorName, msg.namingFormat);
         figma.currentPage.appendChild(parentComponent);
-        parentComponent.x = 0;
-        parentComponent.y = idx * 1400;
+        const baseX = 0;
+        const baseY = idx * 1400;
+        parentComponent.x = baseX;
+        parentComponent.y = baseY;
+
+        // Layout constants to match desired canvas layout
+        const paletteOffsetX = 140; // gap between parent component and palettes
+        const modesGapY = 106; // desired spacing between Light and Dark blocks
+
+        // Background container for modes (rounded "bg" like the reference)
+        const modesBg = figma.createFrame();
+        modesBg.name = `${colorName} - Ramps`;
+        modesBg.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
+        modesBg.cornerRadius = 20;
+        modesBg.paddingLeft = 24;
+        modesBg.paddingRight = 24;
+        modesBg.paddingTop = 24;
+        modesBg.paddingBottom = 24;
+        modesBg.itemSpacing = modesGapY;
+        modesBg.layoutMode = "VERTICAL";
+        modesBg.counterAxisSizingMode = "AUTO";
+        modesBg.primaryAxisSizingMode = "AUTO";
+        figma.currentPage.appendChild(modesBg);
+        modesBg.x = baseX + parentComponent.width + paletteOffsetX;
+        modesBg.y = baseY;
 
         const collection = collectionsByName?.get(collectionName);
         const defaultModeId = collection?.modes.find((m) => m.name === "Default")?.modeId;
@@ -915,17 +1032,17 @@ async function handleGeneratePalette(msg: PaletteMessage) {
           const defaultFrame = figma.createFrame();
           defaultFrame.name = `${colorName} - Default Mode`;
           defaultFrame.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
-          defaultFrame.paddingLeft = 24;
-          defaultFrame.paddingRight = 24;
-          defaultFrame.paddingTop = 24;
-          defaultFrame.paddingBottom = 24;
           defaultFrame.itemSpacing = 16;
           defaultFrame.layoutMode = "HORIZONTAL";
           defaultFrame.counterAxisSizingMode = "AUTO";
           defaultFrame.primaryAxisSizingMode = "AUTO";
-          figma.currentPage.appendChild(defaultFrame);
-          defaultFrame.x = 0;
-          defaultFrame.y = idx * 1400 + 450;
+          // Default: keep it inside the same rounded bg container
+          defaultFrame.fills = [];
+          defaultFrame.paddingLeft = 0;
+          defaultFrame.paddingRight = 0;
+          defaultFrame.paddingTop = 0;
+          defaultFrame.paddingBottom = 0;
+          modesBg.appendChild(defaultFrame);
 
           if (collection && defaultModeId) {
             defaultFrame.setExplicitVariableModeForCollection(collection, defaultModeId);
@@ -951,18 +1068,17 @@ async function handleGeneratePalette(msg: PaletteMessage) {
         if (useLightMode && lightPalette.length > 0) {
           const lightFrame = figma.createFrame();
           lightFrame.name = `${colorName} - Light Mode`;
-          lightFrame.fills = [{ type: "SOLID", color: { r: 1, g: 1, b: 1 } }];
-          lightFrame.paddingLeft = 24;
-          lightFrame.paddingRight = 24;
-          lightFrame.paddingTop = 24;
-          lightFrame.paddingBottom = 24;
+          // Background is handled by modesBg; keep this frame transparent
+          lightFrame.fills = [];
+          lightFrame.paddingLeft = 0;
+          lightFrame.paddingRight = 0;
+          lightFrame.paddingTop = 0;
+          lightFrame.paddingBottom = 0;
           lightFrame.itemSpacing = 16;
           lightFrame.layoutMode = "HORIZONTAL";
           lightFrame.counterAxisSizingMode = "AUTO";
           lightFrame.primaryAxisSizingMode = "AUTO";
-          figma.currentPage.appendChild(lightFrame);
-          lightFrame.x = 0;
-          lightFrame.y = idx * 1400 + 450;
+          modesBg.appendChild(lightFrame);
 
           // Ensure the variable mode resolves to Light inside this frame
           if (collection && lightModeId) {
@@ -990,6 +1106,8 @@ async function handleGeneratePalette(msg: PaletteMessage) {
           const darkFrame = figma.createFrame();
           darkFrame.name = `${colorName} - Dark Mode`;
           darkFrame.fills = [{ type: "SOLID", color: { r: 0.1, g: 0.1, b: 0.1 } }];
+          darkFrame.cornerRadius = 20;
+          darkFrame.clipsContent = true;
           darkFrame.paddingLeft = 24;
           darkFrame.paddingRight = 24;
           darkFrame.paddingTop = 24;
@@ -998,9 +1116,7 @@ async function handleGeneratePalette(msg: PaletteMessage) {
           darkFrame.layoutMode = "HORIZONTAL";
           darkFrame.counterAxisSizingMode = "AUTO";
           darkFrame.primaryAxisSizingMode = "AUTO";
-          figma.currentPage.appendChild(darkFrame);
-          darkFrame.x = 0;
-          darkFrame.y = idx * 1400 + 900;
+          modesBg.appendChild(darkFrame);
 
           // Ensure the variable mode resolves to Dark inside this frame
           if (collection && darkModeId) {
@@ -1017,7 +1133,7 @@ async function handleGeneratePalette(msg: PaletteMessage) {
               msg.namingFormat,
               0,
               0,
-              { collectionName, variableByName }
+              { collectionName, variableByName, isDarkModeFrame: true }
             );
             darkFrame.appendChild(instance);
           }
@@ -1052,28 +1168,42 @@ figma.ui.onmessage = async (msg) => {
     await handleGeneratePalette(msg);
   } else if (msg.type === "import-json") {
     // Convert JSON format to new array format
+    const opts = msg.data?.options ?? {};
+
     const colors: ColorInput[] = msg.data.colors.map((colorData: any) => ({
-        colorName: colorData.name,
-        inputMode: colorData.hex ? "hex" : "oklch",
-        hexColor: colorData.hex,
-        oklch: colorData.oklch,
+      colorName: colorData.name,
+      inputMode: colorData.hex ? "hex" : "oklch",
+      hexColor: colorData.hex,
+      oklch: colorData.oklch,
+      // Allow per-color overrides; fall back to options
+      collectionName: colorData.collectionName ?? opts.collectionName,
+      numberOfVariants: colorData.numberOfVariants ?? opts.numberOfVariants,
+      useLightMode: colorData.useLightMode ?? opts.useLightMode,
+      useDarkMode: colorData.useDarkMode ?? opts.useDarkMode,
+      useDescription: colorData.useDescription ?? opts.useDescription,
+      // Back-compat: allow old key variableDescription
+      description:
+        colorData.description ??
+        opts.description ??
+        opts.variableDescription ??
+        undefined,
+      codeSyntaxPlatform: colorData.codeSyntaxPlatform ?? opts.codeSyntaxPlatform,
     }));
 
     const paletteMsg: PaletteMessage = {
       type: "generate-palette",
-      colors: colors.map(c => ({
+      colors: colors.map((c) => ({
         ...c,
-        collectionName: msg.data.options?.collectionName || "primitives",
-        useDescription: msg.data.options?.useDescription ?? false,
-        description: msg.data.options?.variableDescription || "",
-        useCodeSyntax: msg.data.options?.useCodeSyntax ?? false,
-        useLightMode: msg.data.options?.useLightMode ?? true,
-        useDarkMode: msg.data.options?.useDarkMode ?? true,
-        numberOfVariants: msg.data.options?.numberOfVariants || 9,
+        collectionName: c.collectionName || "primitives",
+        useDescription: c.useDescription ?? false,
+        description: c.description || "",
+        useLightMode: c.useLightMode ?? true,
+        useDarkMode: c.useDarkMode ?? true,
+        numberOfVariants: c.numberOfVariants || 9,
       })),
-      namingFormat: msg.data.options?.namingFormat || "kebab-case",
-        createComponents: msg.data.options?.createComponents ?? true,
-        createVariables: msg.data.options?.createVariables ?? true,
+      namingFormat: opts.namingFormat || "kebab-case",
+      createComponents: opts.createComponents ?? true,
+      createVariables: opts.createVariables ?? true,
       };
 
       await handleGeneratePalette(paletteMsg);

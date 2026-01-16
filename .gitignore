@@ -22,4 +22,7 @@ pnpm-debug.log*
 # Misc
 *.backup
 
+# Media (avoid GitHub 100MB limit; use external storage or Git LFS if needed)
+*.mov
+
 

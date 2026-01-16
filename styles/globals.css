@@ -209,6 +209,76 @@ input, select, textarea {
 }
 
 /* Utility classes para reemplazar Tailwind */
+.relative { position: relative; }
+.overflow-auto { overflow: auto; }
+.rounded-none { border-radius: 0; }
+
+/* Floating icon button inside a section header */
+.icon-float {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+}
+
+/* Floating icon inside a textarea wrapper */
+.icon-float-field {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+
+.icon-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 20px;
+}
+
+/* Tooltip for icon actions (copy/paste) */
+.icon-tooltip {
+  position: absolute;
+  right: 0;
+  top: -6px;
+  transform: translateY(-100%);
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 4px 6px;
+  font-size: 10px;
+  line-height: 1;
+  border-radius: 6px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease, transform 120ms ease;
+  z-index: 5;
+}
+
+.icon-btn:hover .icon-tooltip {
+  opacity: 1;
+  transform: translateY(-110%);
+}
+
+.icon-tooltip.is-visible {
+  opacity: 1;
+  transform: translateY(-110%);
+}
+
+/* Sticky footer for primary CTA */
+.sticky-footer {
+  position: sticky;
+  bottom: 0;
+  /* Keep CTA visible without adding a "panel" or shadow behind it */
+  background: transparent;
+  border-top: none !important;
+  box-shadow: none !important;
+  padding-top: 12px;
+  padding-bottom: 6px;
+}
+
 .flex {
   display: flex;
 }
@@ -271,6 +341,14 @@ input, select, textarea {
 
 .h-64 {
   height: 256px;
+}
+
+.h-56 {
+  height: 224px;
+}
+
+.max-h-44 {
+  max-height: 176px;
 }
 
 .min-h-screen {

@@ -362,7 +362,7 @@ export function PaletteConfigurator() {
         className="mt-2 rounded px-4 py-3 text-white text-[13px] transition-colors btn-primary"
         disabled={colors.length === 0}
       >
-        ✨ Generar Rampa en Figma
+        ✨ Generar Rampas
       </button>
     </div>
   );
