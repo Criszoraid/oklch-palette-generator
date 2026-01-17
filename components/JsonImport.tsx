@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 export function JsonImport() {
   const [jsonInput, setJsonInput] = useState("");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [pasted, setPasted] = useState(false);
+  const jsonTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const handleImport = () => {
     try {
@@ -104,24 +105,35 @@ export function JsonImport() {
 
   const handlePasteIntoInput = async () => {
     try {
-      let text = "";
+      // 1) Preferred: Clipboard API
       if (typeof navigator !== "undefined" && navigator.clipboard?.readText) {
-        text = await navigator.clipboard.readText();
+        const text = await navigator.clipboard.readText();
+        if (!text || !text.trim()) throw new Error("El portapapeles está vacío.");
+        setJsonInput(text);
+        setError("");
+        setPasted(true);
+        window.setTimeout(() => setPasted(false), 1200);
+        return;
       }
 
-      // Fallback: if clipboard read is blocked, paste the example to keep UX unblocked.
-      if (!text) text = exampleText;
-
-      setJsonInput(text);
+      // 2) Fallback: attempt execCommand('paste') into the textarea (works in some Figma environments)
+      if (typeof document === "undefined") {
+        throw new Error("No se puede acceder al portapapeles en este entorno.");
+      }
+      const ta = jsonTextareaRef.current;
+      if (!ta) throw new Error("Campo de texto no disponible.");
+      ta.focus();
+      ta.select();
+      const ok = document.execCommand("paste");
+      if (!ok) {
+        throw new Error("Figma bloqueó el portapapeles. Pega manualmente con Cmd/Ctrl+V.");
+      }
+      setJsonInput(ta.value);
       setError("");
       setPasted(true);
       window.setTimeout(() => setPasted(false), 1200);
     } catch (e) {
-      // As a last resort, paste the example.
-      setJsonInput(exampleText);
-      setError("");
-      setPasted(true);
-      window.setTimeout(() => setPasted(false), 1200);
+      setError((e as Error).message);
     }
   };
 
@@ -171,6 +183,7 @@ export function JsonImport() {
             onChange={(e) => setJsonInput(e.target.value)}
             className="w-full textarea font-mono h-56 resize-none"
             placeholder={exampleText}
+            ref={jsonTextareaRef}
           />
           <button
             type="button"

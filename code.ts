@@ -262,9 +262,9 @@ function generatePalette(
     // Use a curve that starts low, peaks in the middle, and ends slightly lower
     let chromaFactor: number;
     if (isDarkMode) {
-      // Dark mode: keep chroma essentially constant so perceived "jumps" between
-      // steps are driven mostly by lightness (more uniform ramp).
-      chromaFactor = 0.95;
+      // Dark mode: taper chroma towards the darkest steps to avoid gamut/clipping
+      // artifacts that can create uneven perceived jumps (notably in warm hues).
+      chromaFactor = 0.92 - 0.22 * positionRaw; // ~0.92 (100) -> ~0.70 (900)
     } else {
       if (position < 0.5) {
         // First half: from 0.7-0.75 to 1.0 (increasing)
