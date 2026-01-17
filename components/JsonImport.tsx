@@ -4,8 +4,8 @@ export function JsonImport() {
   const [jsonInput, setJsonInput] = useState("");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
-  const [pasted, setPasted] = useState(false);
   const jsonTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const [pasteHintVisible, setPasteHintVisible] = useState(false);
 
   const handleImport = () => {
     try {
@@ -103,38 +103,9 @@ export function JsonImport() {
     }
   };
 
-  const handlePasteIntoInput = async () => {
-    try {
-      // 1) Preferred: Clipboard API
-      if (typeof navigator !== "undefined" && navigator.clipboard?.readText) {
-        const text = await navigator.clipboard.readText();
-        if (!text || !text.trim()) throw new Error("El portapapeles está vacío.");
-        setJsonInput(text);
-        setError("");
-        setPasted(true);
-        window.setTimeout(() => setPasted(false), 1200);
-        return;
-      }
-
-      // 2) Fallback: attempt execCommand('paste') into the textarea (works in some Figma environments)
-      if (typeof document === "undefined") {
-        throw new Error("No se puede acceder al portapapeles en este entorno.");
-      }
-      const ta = jsonTextareaRef.current;
-      if (!ta) throw new Error("Campo de texto no disponible.");
-      ta.focus();
-      ta.select();
-      const ok = document.execCommand("paste");
-      if (!ok) {
-        throw new Error("Figma bloqueó el portapapeles. Pega manualmente con Cmd/Ctrl+V.");
-      }
-      setJsonInput(ta.value);
-      setError("");
-      setPasted(true);
-      window.setTimeout(() => setPasted(false), 1200);
-    } catch (e) {
-      setError((e as Error).message);
-    }
+  const showPasteHint = () => {
+    setPasteHintVisible(true);
+    window.setTimeout(() => setPasteHintVisible(false), 1400);
   };
 
   return (
@@ -178,60 +149,21 @@ export function JsonImport() {
           </label>
         </div>
         <div className="relative">
+          <span className={`field-hint ${pasteHintVisible ? "is-visible" : ""}`}>
+            Pega con Cmd/Ctrl+V
+          </span>
           <textarea
             value={jsonInput}
             onChange={(e) => setJsonInput(e.target.value)}
             className="w-full textarea font-mono h-56 resize-none"
             placeholder={exampleText}
             ref={jsonTextareaRef}
+            onFocus={(e) => {
+              // Help users replace the whole JSON quickly
+              e.currentTarget.select();
+              showPasteHint();
+            }}
           />
-          <button
-            type="button"
-            onClick={handlePasteIntoInput}
-            title={pasted ? "Pegado" : "Pegar"}
-            aria-label={pasted ? "JSON pegado" : "Pegar JSON en el campo"}
-            className="btn-secondary icon-btn icon-float-field"
-          >
-            <span className={`icon-tooltip ${pasted ? "is-visible" : ""}`}>
-              {pasted ? "Pegado" : "Pegar"}
-            </span>
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 32 32"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <polyline
-                points="23,12 23,18 29,18 23,12 15,12 15,30 29,30 29,18"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M20,6h-8V4c0-1.1,0.9-2,2-2h4c1.1,0,2,0.9,2,2V6z"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M15,28h-5c-2.2,0-4-1.8-4-4V8c0-2.2,1.8-4,4-4h2"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M20,4h2c2.2,0,4,1.8,4,4v7"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
         </div>
         {error && <p className="mt-2 text-[11px] text-danger">{error}</p>}
       </div>

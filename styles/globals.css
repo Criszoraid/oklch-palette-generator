@@ -267,6 +267,31 @@ input, select, textarea {
   transform: translateY(-110%);
 }
 
+/* Hint shown when focusing the JSON textarea */
+.field-hint {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 4px 6px;
+  font-size: 10px;
+  line-height: 1;
+  border-radius: 6px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease, transform 120ms ease;
+  transform: translateY(-2px);
+  z-index: 5;
+}
+
+.field-hint.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 /* Sticky footer for primary CTA */
 .sticky-footer {
   position: sticky;
